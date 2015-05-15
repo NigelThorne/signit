@@ -2,6 +2,7 @@ package main
 
 import (
   "os"
+  "os/exec"
   "github.com/codegangsta/cli"
   "crypto/sha1"
   "bufio"
@@ -11,13 +12,16 @@ import (
   "fmt"
   "strings"
   "net/http"
+  "net/url"
+  "runtime"
+  "encoding/base64"
 )
     
-func makeSig( user string, reason string, time time.Time, hash []byte) string{
-    return fmt.Sprintf("Signatory: %s\nReason:    %s\nTime:      %v\nDoc Id:    %x", user, reason, time, hash)
+func makeSig( user string, reason string, time time.Time, hash string) string{
+    return fmt.Sprintf("Signatory: %s\nReason:    %s\nTime:      %v\nDoc Id:    %s", user, reason, time, hash)
 }
 
-func docToHash( filename string ) []byte {
+func docToHash( filename string ) string {
     var f *os.File
     fullpath, err := filepath.Abs(filename)
     if err != nil {
@@ -34,11 +38,11 @@ func docToHash( filename string ) []byte {
     if err != nil {
         panic(err)
     }
-    return sha1.Sum(nil)
+    return base64.URLEncoding.EncodeToString(sha1.Sum(nil))
 }
 
-func post(url, name, sig string) {
-    _, err := http.Post(url+"user/"+name+"/"+"signatures", "text/text", strings.NewReader(sig))
+func post(web_address, name, sig, hash string) {
+    _, err := http.Post(web_address+"user/"+name+"/"+"signatures?sha="+ url.QueryEscape(hash), "text/text", strings.NewReader(sig))
     if err!=nil {
         println("**** Error posting to service ****")
         println(err.Error())
@@ -46,30 +50,75 @@ func post(url, name, sig string) {
     }
 }
 
+// func get_list(web_address, hash string) {
+//     result, err := http.Get(web_address+"signatures/"+hash, "text/text")
+//     if err!=nil {
+//         println("**** Error posting to service ****")
+//         println(err.Error())
+//         panic(err)
+//     }
+//     return result
+// }
+
+func open_browser(url string)  error{
+  var err error
+  switch runtime.GOOS {
+  case "linux":
+      err = exec.Command("xdg-open", url).Start()
+  case "darwin":
+      err = exec.Command("open", url).Start()
+  case "windows":
+      err = exec.Command("C:\\Windows\\System32\\rundll32.exe", "url.dll,FileProtocolHandler", url).Start()
+  default:
+      err = fmt.Errorf("unsupported platform")
+  }
+  return err
+}
+
 func main() {
     app := cli.NewApp()
     app.Name = "SignIt"
-    app.Usage = "Lodge your signature with a central signature repository"
-    app.Flags = []cli.Flag {
-        cli.StringFlag{ "file, f", "", "file to sign" },
-        cli.StringFlag{ "reason, r", "Approving document for release.", "reason for signature" },
-        cli.StringFlag{ "user, u", "", "user-name of signatory" },
-        cli.StringFlag{ "service, url", "http://localhost:51830/", "user-name of signatory" },
-    }
-    app.Action = func( c *cli.Context ) {
+    app.Commands = []cli.Command{
+      {
+        Name:  "sign",
+        Aliases: []string{"s"},
+        Usage: "Lodge your signature with a central signature repository",
+        Flags: []cli.Flag {
+          cli.StringFlag{ Name:"file, f", Value:"", Usage:"file to sign" },
+          cli.StringFlag{ Name:"reason, r", Value:"Approving document for release.", Usage:"reason for signature" },
+          cli.StringFlag{ Name:"user, u", Value:"", Usage:"user-name of signatory" },
+          cli.StringFlag{ Name:"service, url", Value:"https://localhost:51830/", Usage:"user-name of signatory" },
+        },
+        Action: func( c *cli.Context ) {
 
-//        if len(c.Args()) > 0 {
-//            name = c.Args()[0]
-    defer func() {
-   			if r := recover(); r != nil {
-                cli.ShowAppHelp(c)
-   			}
-   		}()
-        hash := docToHash( c.String( "file" ) )
-        sig := makeSig( c.String( "user" ), c.String( "reason" ), time.Now().Local(), hash) 
-        println( sig )
-    //    pass := prompt_for_password()
-        post( c.String("service"), c.String( "user" ), sig )
+          //        if len(c.Args()) > 0 {
+          //            name = c.Args()[0]
+          defer func() { if r := recover(); r != nil {cli.ShowAppHelp(c)}}()
+
+          hash := docToHash( c.String( "file" ) )
+          sig := makeSig( c.String( "user" ), c.String( "reason" ), time.Now().Local(), hash) 
+          println( sig )
+          //    pass := prompt_for_password()
+          post( c.String("service"), c.String( "user" ), sig, hash )
+        },
+      },
+      {
+        Name:  "list",
+        Aliases: []string{"l"},
+        Usage: "list all knows signatures for this document in the central signature repository",
+        Flags: []cli.Flag {
+          cli.StringFlag{ Name:"file, f", Value:"", Usage:"file to sign" },
+          cli.StringFlag{ Name:"service, url", Value:"https://localhost:51830/", Usage:"user-name of signatory" },
+        },
+        Action: func( c *cli.Context ) {
+          defer func() { if r := recover(); r != nil {cli.ShowAppHelp(c)}}()
+
+          hash := docToHash( c.String( "file" ) )
+          
+          open_browser( c.String("service")+"signatures/"+url.QueryEscape(hash))
+          //get_list( c.String("service"), hash)
+        },
+      },
     }
 
   app.Run(os.Args)
