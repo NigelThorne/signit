@@ -87,7 +87,7 @@ func main() {
           cli.StringFlag{ Name:"file, f", Value:"", Usage:"file to sign" },
           cli.StringFlag{ Name:"reason, r", Value:"Approving document for release.", Usage:"reason for signature" },
           cli.StringFlag{ Name:"user, u", Value:"", Usage:"user-name of signatory" },
-          cli.StringFlag{ Name:"service, url", Value:"https://localhost:51830/", Usage:"user-name of signatory" },
+          cli.StringFlag{ Name:"service, url", Value:"http://localhost:51830/", Usage:"user-name of signatory" },
         },
         Action: func( c *cli.Context ) {
 
@@ -108,7 +108,7 @@ func main() {
         Usage: "list all knows signatures for this document in the central signature repository",
         Flags: []cli.Flag {
           cli.StringFlag{ Name:"file, f", Value:"", Usage:"file to sign" },
-          cli.StringFlag{ Name:"service, url", Value:"https://localhost:51830/", Usage:"user-name of signatory" },
+          cli.StringFlag{ Name:"service, url", Value:"http://localhost:51830/", Usage:"user-name of signatory" },
         },
         Action: func( c *cli.Context ) {
           defer func() { if r := recover(); r != nil {cli.ShowAppHelp(c)}}()
