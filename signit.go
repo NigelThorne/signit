@@ -3,6 +3,7 @@ package main
 import (
   "os"
   "os/exec"
+  "os/user"
   "github.com/codegangsta/cli"
   "crypto/sha1"
   "bufio"
@@ -86,7 +87,6 @@ func main() {
         Flags: []cli.Flag {
           cli.StringFlag{ Name:"file, f", Value:"", Usage:"file to sign" },
           cli.StringFlag{ Name:"reason, r", Value:"Approving document for release.", Usage:"reason for signature" },
-          cli.StringFlag{ Name:"user, u", Value:"", Usage:"user-name of signatory" },
           cli.StringFlag{ Name:"service, url", Value:"http://localhost:51830/", Usage:"user-name of signatory" },
         },
         Action: func( c *cli.Context ) {
@@ -96,10 +96,15 @@ func main() {
           defer func() { if r := recover(); r != nil {cli.ShowAppHelp(c)}}()
 
           hash := docToHash( c.String( "file" ) )
-          sig := makeSig( c.String( "user" ), c.String( "reason" ), time.Now().Local(), hash) 
+          name, err := user.Current()  
+          if err!=nil {
+            println(err.Error())
+            panic(err)
+          }         
+          sig := makeSig( name.Name + " (" + name.Username + ")" , c.String( "reason" ), time.Now().Local(), hash) 
           println( sig )
           //    pass := prompt_for_password()
-          post( c.String("service"), c.String( "user" ), sig, hash )
+          post( c.String("service"), name.Username, sig, hash )
         },
       },
       {
